@@ -6,7 +6,7 @@
 }
 
 :root {
-  --noche: #0b0b1e;
+  --noche: #1d0f3a;
   --morado: #1a1038;
   --teal: #2ec4b6;
   --naranja: #ff6b35;
@@ -48,7 +48,7 @@ html, body {
   justify-content: center;
   gap: 16px;
   text-align: center;
-  background: rgba(11, 11, 30, .96);
+  background: rgba(61, 30, 109, .97);
 }
 
 #espera h1 {
@@ -63,7 +63,7 @@ html, body {
   margin: 0;
   font-size: clamp(9px, 1.8vmin, 14px);
   line-height: 1.6;
-  color: #b9b9ff;
+  color: #ffe3f0;
 }
 
 #qr {
