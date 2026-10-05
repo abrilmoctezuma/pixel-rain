@@ -102,7 +102,7 @@ class Escena extends Phaser.Scene {
 
     T.generate('moneda', {
       pixelWidth: 4,
-      palette: { 1: '#ffd23f', 2: '#e08a00', 3: '#fff6b0' },
+      palette: { 1: '#ffd23f', 2: '#8a4b00', 3: '#fff6b0' },
       data: [
         '..2222..',
         '.211112.',
@@ -146,6 +146,18 @@ class Escena extends Phaser.Scene {
       });
     });
 
+    // Sol pixelado
+    const sol = [];
+    for (let y = 0; y < 24; y++) {
+      let fila = '';
+      for (let x = 0; x < 24; x++) {
+        const d = Math.hypot(x - 11.5, y - 11.5);
+        fila += d <= 11.5 ? (y % 6 < 3 ? '1' : '2') : '.';
+      }
+      sol.push(fila);
+    }
+    T.generate('sol', { pixelWidth: 6, palette: { 1: '#ffe27a', 2: '#ffc857' }, data: sol });
+
     // Dos capas de lluvia de píxeles para el fondo
     const lluvia = (key, gotas, c1, c2) => {
       const filas = Array.from({ length: 32 }, () => Array(32).fill('.'));
@@ -162,25 +174,33 @@ class Escena extends Phaser.Scene {
         data: filas.map((f) => f.join('')),
       });
     };
-    lluvia('lluviaA', 14, '#2a2a6a', '#3d3d9a');
-    lluvia('lluviaB', 8, '#4a4aa8', '#8a8af0');
+    lluvia('lluviaA', 14, '#ffd6e8', '#ffffff');
+    lluvia('lluviaB', 8, '#ffd6e8', '#ffffff');
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#1a1038');
+    this.cameras.main.setBackgroundColor('#2a1a5e');
     this.crearTexturas();
 
-    // Fondo: lluvia que cae
-    this.fondoA = this.add.tileSprite(W / 2, H / 2, W, H, 'lluviaA');
-    this.fondoB = this.add.tileSprite(W / 2, H / 2, W, H, 'lluviaB');
+    // Cielo de atardecer en franjas (de arriba hacia el horizonte)
+    const cielo = [0x2a1a5e, 0x4a2275, 0x7a2b87, 0xa93a86, 0xd4507a, 0xee6b5e, 0xf58a5a];
+    const alto = Math.ceil(H / cielo.length);
+    cielo.forEach((c, i) => this.add.rectangle(0, i * alto, W, alto, c).setOrigin(0, 0));
 
-    // Suelo
-    this.add.rectangle(W / 2, H - 6, W, 12, 0x0b0b1e);
-    this.add.rectangle(W / 2, H - 12, W, 4, 0xffd23f);
+    // Sol que se esconde detrás del suelo
+    this.add.image(W * 0.72, H - 120, 'sol');
+
+    // Fondo: lluvia que cae (clara y semitransparente)
+    this.fondoA = this.add.tileSprite(W / 2, H / 2, W, H, 'lluviaA').setAlpha(0.25);
+    this.fondoB = this.add.tileSprite(W / 2, H / 2, W, H, 'lluviaB').setAlpha(0.5);
+
+    // Suelo oscuro: tapa lo que cae al fondo
+    this.add.rectangle(W / 2, H - 35, W, 70, 0x1d0f3a).setDepth(3);
+    this.add.rectangle(W / 2, H - 70, W, 6, 0x4b2a7a).setDepth(3);
 
     // Jugadores
     this.jug = [0, 1].map((i) => {
-      const p = this.physics.add.sprite(i ? 600 : 200, H - 44, 'j' + i);
+      const p = this.physics.add.sprite(i ? 600 : 200, H - 88, 'j' + i);
       p.setCollideWorldBounds(true);
       p.dir = 0;
       p.puntos = 0;
@@ -202,7 +222,13 @@ class Escena extends Phaser.Scene {
     });
 
     // Textos
-    const f = (px, color) => ({ fontFamily: FUENTE, fontSize: px + 'px', color });
+    const f = (px, color) => ({
+      fontFamily: FUENTE,
+      fontSize: px + 'px',
+      color,
+      stroke: '#14143a',
+      strokeThickness: Math.max(3, Math.round(px / 5)),
+    });
     this.t = [0, 1].map((i) =>
       this.add.text(i ? W - 16 : 16, 16, '', f(16, COLORES[i])).setOrigin(i, 0).setDepth(5)
     );
@@ -235,7 +261,7 @@ class Escena extends Phaser.Scene {
 
   popup(x, y, texto, color) {
     const t = this.add
-      .text(x, y, texto, { fontFamily: FUENTE, fontSize: '16px', color })
+      .text(x, y, texto, { fontFamily: FUENTE, fontSize: '16px', color, stroke: '#14143a', strokeThickness: 4 })
       .setOrigin(0.5)
       .setDepth(6);
     this.tweens.add({ targets: t, y: y - 40, alpha: 0, duration: 600, onComplete: () => t.destroy() });
@@ -335,7 +361,7 @@ function arrancarPhaser() {
     height: H,
     parent: 'juego',
     pixelArt: true,
-    backgroundColor: '#1a1038',
+    backgroundColor: '#2a1a5e',
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
     scene: Escena,
