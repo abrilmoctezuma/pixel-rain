@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pixel Rain</title>
+  <link rel="stylesheet" href="css/pantalla.css">
+</head>
+<body>
+  <div id="caja">
+    <div id="juego"></div>
+
+    <div id="espera">
+      <h1>PIXEL RAIN</h1>
+      <p id="aviso">Creando sala...</p>
+      <div id="qr"></div>
+      <div id="url"></div>
+      <div class="estado" id="j0"></div>
+      <div class="estado" id="j1"></div>
+    </div>
+  </div>
+
+  <!-- Librerías (en la carpeta lib/) -->
+  <script src="lib/phaser.min.js"></script>
+  <script src="lib/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <script src="js/pantalla.js"></script>
+</body>
+</html>
