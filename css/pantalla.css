@@ -24,15 +24,12 @@ html, body {
   overflow: hidden;
 }
 
-/* Caja 4:3 que se ajusta a cualquier pantalla o proyector */
+/* La caja ocupa toda la ventana */
 #caja {
   position: relative;
-  width: min(100vw, calc(100vh * 4 / 3));
-  aspect-ratio: 4 / 3;
-  /* borde "escalonado" estilo pixel */
-  box-shadow:
-    0 -6px 0 0 var(--moneda), 0 6px 0 0 var(--moneda),
-    -6px 0 0 0 var(--moneda), 6px 0 0 0 var(--moneda);
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
 }
 
 #juego { position: absolute; inset: 0; }
@@ -85,3 +82,11 @@ html, body {
 .estado { font-size: clamp(10px, 2vmin, 16px); }
 #j0 { color: var(--teal); }
 #j1 { color: var(--naranja); }
+
+#ayuda {
+  position: absolute;
+  bottom: 14px;
+  margin: 0;
+  font-size: 9px;
+  opacity: .6;
+}
