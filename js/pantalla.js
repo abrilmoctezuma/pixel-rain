@@ -221,19 +221,15 @@ class Escena extends Phaser.Scene {
       this.physics.add.overlap(p, this.objetos, (jugador, o) => {
         if (estado !== 'jugando' || !o.active) return;
 
-        // Si los dos cestos tocan el objeto a la vez, se lo queda el que lo tenga más cerca
-        const miIndice = this.jug.indexOf(jugador);
-        const otro = this.jug[1 - miIndice];
-        if (this.physics.overlap(otro, o)) {
-          const yo = Math.abs(jugador.x - o.x);
-          const el = Math.abs(otro.x - o.x);
-          // En un empate exacto de distancia gana el Jugador 1
-          if (el < yo || (el === yo && miIndice === 1)) return;
-        }
+        // Si los dos cestos tocan el objeto a la vez, le cuenta a los dos
+        const otro = this.jug[1 - this.jug.indexOf(jugador)];
+        const tocan = this.physics.overlap(otro, o) ? [jugador, otro] : [jugador];
 
         const mala = o.esBomba;
-        jugador.puntos += mala ? -1 : 1;
-        this.popup(o.x, o.y, mala ? '-1' : '+1', mala ? '#ff3b3b' : '#ffd23f');
+        tocan.forEach((j) => {
+          j.puntos += mala ? -1 : 1;
+          this.popup(j.x, o.y, mala ? '-1' : '+1', mala ? '#ff3b3b' : '#ffd23f');
+        });
         if (mala) this.cameras.main.shake(120, 0.006);
         o.destroy();
         this.actualizarMarcador();
