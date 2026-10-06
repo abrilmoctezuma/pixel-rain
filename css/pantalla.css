@@ -96,12 +96,12 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin-top: 10px;
-  padding: 18px 30px;
+  margin-top: 6px;
+  padding: 11px 18px;
   font-family: inherit;
-  font-size: clamp(11px, 2.2vmin, 18px);
+  font-size: clamp(8px, 1.6vmin, 12px);
   line-height: 1.4;
-  letter-spacing: 1px;
+  letter-spacing: 0;
   border: 0;
   border-radius: 0;
   background: var(--moneda);
@@ -122,9 +122,9 @@ html, body {
 #empezar:not(:disabled)::before {
   content: "";
   flex: none;
-  width: 16px;
-  height: 20px;
-  margin-right: 14px;
+  width: 12px;
+  height: 15px;
+  margin-right: 10px;
   background: #2a1048;
   clip-path: polygon(
     0 0, 25% 0, 25% 14%, 50% 14%, 50% 28%, 75% 28%, 75% 43%, 100% 43%,
@@ -163,7 +163,7 @@ html, body {
 
 @keyframes latido {
   from { transform: translateY(0); }
-  to   { transform: translateY(-5px); }
+  to   { transform: translateY(-3px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
