@@ -93,20 +93,79 @@ html, body {
 }
 
 #empezar {
-  margin-top: 6px;
-  padding: 14px 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 10px;
+  padding: 18px 30px;
   font-family: inherit;
-  font-size: clamp(10px, 2vmin, 16px);
+  font-size: clamp(11px, 2.2vmin, 18px);
+  line-height: 1.4;
+  letter-spacing: 1px;
   border: 0;
+  border-radius: 0;
   background: var(--moneda);
   color: #2a1048;
-  box-shadow: 0 6px 0 var(--naranja);
+  text-shadow: 2px 2px 0 rgba(255, 255, 255, .5);
   cursor: pointer;
+  /* borde pixelado con esquinas "mordidas", brillo arriba, sombra abajo y grosor */
+  box-shadow:
+    0 -4px 0 0 #14143a, 0 4px 0 0 #14143a,
+    -4px 0 0 0 #14143a, 4px 0 0 0 #14143a,
+    0 10px 0 0 #14143a,
+    inset 0 6px 0 0 #fff3a8,
+    inset 0 -6px 0 0 #e08a00;
+  animation: latido 0.9s steps(2, jump-none) infinite;
 }
-#empezar:not(:disabled):active { transform: translateY(6px); box-shadow: none; }
+
+/* Flecha pixelada a la izquierda del texto */
+#empezar:not(:disabled)::before {
+  content: "";
+  flex: none;
+  width: 16px;
+  height: 20px;
+  margin-right: 14px;
+  background: #2a1048;
+  clip-path: polygon(
+    0 0, 25% 0, 25% 14%, 50% 14%, 50% 28%, 75% 28%, 75% 43%, 100% 43%,
+    100% 57%, 75% 57%, 75% 72%, 50% 72%, 50% 86%, 25% 86%, 25% 100%, 0 100%
+  );
+}
+
+#empezar:not(:disabled):hover { filter: brightness(1.08); }
+
+#empezar:not(:disabled):active {
+  animation: none;
+  transform: translateY(6px);
+  box-shadow:
+    0 -4px 0 0 #14143a, 0 4px 0 0 #14143a,
+    -4px 0 0 0 #14143a, 4px 0 0 0 #14143a,
+    inset 0 6px 0 0 #fff3a8,
+    inset 0 -6px 0 0 #e08a00;
+}
+
+#empezar:focus-visible { outline: 4px dashed #fff; outline-offset: 10px; }
+
+/* Apagado: todavía faltan jugadores */
 #empezar:disabled {
+  animation: none;
   background: #6b5a99;
   color: #c9bfe6;
-  box-shadow: 0 6px 0 #3b2d63;
+  text-shadow: none;
   cursor: not-allowed;
+  box-shadow:
+    0 -4px 0 0 #2b2150, 0 4px 0 0 #2b2150,
+    -4px 0 0 0 #2b2150, 4px 0 0 0 #2b2150,
+    0 10px 0 0 #2b2150,
+    inset 0 6px 0 0 #8b7bb8,
+    inset 0 -6px 0 0 #54457f;
+}
+
+@keyframes latido {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-5px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #empezar { animation: none; }
 }
