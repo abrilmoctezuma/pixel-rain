@@ -1,7 +1,8 @@
 const info = document.getElementById('info');
 const botones = document.getElementById('botones');
 const otra = document.getElementById('otra');
-const COLORES = ['#2ec4b6', '#ff6b35'];
+const COLORES = ['#2ec4b6', '#ff6b35', '#ff4fa3', '#9be564'];
+let miNumero = 0;
 const apretado = { izq: false, der: false };
 
 // Flecha de 8x8 píxeles (la derecha es la misma volteada con CSS)
@@ -38,15 +39,23 @@ function perdida(texto) {
 
 function alRecibir(m) {
   if (m.t === 'asignado') {
+    miNumero = m.slot + 1;
     document.documentElement.style.setProperty('--c', COLORES[m.slot]);
-    info.textContent = 'Eres el Jugador ' + (m.slot + 1);
+    info.textContent = 'Eres el Jugador ' + miNumero;
     botones.style.display = 'flex';
   } else if (m.t === 'lleno') {
-    perdida('La partida ya tiene 2 jugadores');
-  } else if (m.t === 'fin') {
-    otra.style.display = 'block';
+    perdida('La sala ya está llena (4 jugadores)');
+  } else if (m.t === 'enCurso') {
+    perdida('La partida ya empezó. Recarga cuando termine');
   } else if (m.t === 'inicio') {
+    info.textContent = 'Jugador ' + miNumero + ' - A jugar!';
     otra.style.display = 'none';
+  } else if (m.t === 'lobby') {
+    info.textContent = 'Jugador ' + miNumero + ' - esperando jugadores';
+    otra.style.display = 'none';
+  } else if (m.t === 'fin') {
+    info.textContent = m.lugar ? 'Lugar ' + m.lugar + ' con ' + m.puntos + ' pts' : 'Fin de la partida';
+    otra.style.display = 'block';
   }
 }
 
