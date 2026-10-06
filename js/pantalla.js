@@ -1,4 +1,4 @@
-const H = 600, TIEMPO = 60;
+const H = 600, TIEMPO = 60, MAX = 4;     // MAX = jugadores como máximo
 const ANCHO_MAX = 1500;   // cielo, lluvia y suelo se dibujan así de anchos para cubrir cualquier pantalla
 
 // El juego siempre mide 600 de alto; el ancho se adapta a la forma de tu pantalla
@@ -6,34 +6,41 @@ function calcularAncho() {
   return Math.max(640, Math.min(ANCHO_MAX, Math.round(H * window.innerWidth / window.innerHeight)));
 }
 let W = calcularAncho();
-const COLORES = ['#2ec4b6', '#ff6b35'];
+
+const COLORES = ['#2ec4b6', '#ff6b35', '#ff4fa3', '#9be564'];   // turquesa, naranja, rosa, verde
 const FUENTE = '"Press Start 2P", monospace';
 
 let estado = 'esperando';          // esperando | cuenta | jugando | fin
-const conns = [null, null];        // conexión de cada celular
-const conectados = [false, false];
+const conns = Array(MAX).fill(null);        // conexión de cada celular
+const conectados = Array(MAX).fill(false);
 let escena = null;
 const espera = document.getElementById('espera');
 const aviso = document.getElementById('aviso');
+const btnEmpezar = document.getElementById('empezar');
+
+function actualizarBoton() {
+  const n = conectados.filter(Boolean).length;
+  btnEmpezar.disabled = n < 2;
+  btnEmpezar.textContent = n < 2 ? 'FALTAN JUGADORES (MIN. 2)' : 'EMPEZAR (' + n + ' JUGADORES)';
+}
 
 function pintarEstado() {
-  [0, 1].forEach((i) => {
+  for (let i = 0; i < MAX; i++) {
     const el = document.getElementById('j' + i);
     el.textContent = 'Jugador ' + (i + 1) + ': ' + (conectados[i] ? 'LISTO' : 'esperando...');
-    el.style.opacity = conectados[i] ? 1 : 0.5;
-  });
+    el.style.opacity = conectados[i] ? 1 : 0.45;
+  }
+  actualizarBoton();
 }
 pintarEstado();
 
-// Manda un mensaje a los dos celulares
+btnEmpezar.addEventListener('click', () => {
+  if (estado === 'esperando' && escena) escena.iniciar();
+});
+
+// Manda un mensaje a todos los celulares
 function enviarATodos(msg) {
   conns.forEach((c) => { if (c && c.open) c.send(msg); });
-}
-
-function revisar() {
-  if (estado === 'esperando' && conectados[0] && conectados[1] && escena && escena.jug) {
-    escena.iniciar();
-  }
 }
 
 // ---------- Sala con PeerJS ----------
@@ -45,10 +52,10 @@ function crearSala() {
     const url = new URL('control.html?sala=' + idSala, location.href).href;
     const qr = document.getElementById('qr');
     qr.innerHTML = '';
-    const tam = Math.max(200, Math.min(300, Math.round(Math.min(window.innerWidth, window.innerHeight) * 0.35)));
+    const tam = Math.max(200, Math.min(280, Math.round(Math.min(window.innerWidth, window.innerHeight) * 0.3)));
     new QRCode(qr, { text: url, width: tam, height: tam });
     document.getElementById('url').textContent = url;
-    aviso.textContent = 'Escanea el QR con tu celular';
+    aviso.textContent = 'Escanea el QR con tu celular (hasta ' + MAX + ' jugadores)';
   });
 
   peer.on('connection', alUnirse);
@@ -61,6 +68,12 @@ function crearSala() {
 
 function alUnirse(conn) {
   conn.on('open', () => {
+    // Solo se puede entrar en el lobby o entre partidas
+    if (estado === 'cuenta' || estado === 'jugando') {
+      conn.send({ t: 'enCurso' });
+      setTimeout(() => conn.close(), 300);
+      return;
+    }
     const i = conns.indexOf(null);
     if (i === -1) {
       conn.send({ t: 'lleno' });
@@ -72,7 +85,6 @@ function alUnirse(conn) {
     conectados[i] = true;
     conn.send({ t: 'asignado', slot: i });
     pintarEstado();
-    revisar();
   });
 
   conn.on('data', (m) => {
@@ -90,11 +102,7 @@ function alUnirse(conn) {
     conns[s] = null;
     conectados[s] = false;
     pintarEstado();
-    if (estado !== 'esperando') {
-      estado = 'esperando';
-      espera.style.display = 'flex';
-      if (escena) escena.reiniciar();
-    }
+    if (escena) escena.jugadorSalio(s);
   };
   conn.on('close', salir);
   conn.on('error', salir);
@@ -206,12 +214,16 @@ class Escena extends Phaser.Scene {
     this.add.rectangle(0, H - 70, ANCHO_MAX, 70, 0x1d0f3a).setOrigin(0, 0).setDepth(3);
     this.add.rectangle(0, H - 73, ANCHO_MAX, 6, 0x4b2a7a).setOrigin(0, 0).setDepth(3);
 
-    // Jugadores
-    this.jug = [0, 1].map((i) => {
-      const p = this.physics.add.sprite(W * (i ? 0.75 : 0.25), H - 88, 'j' + i);
+    // Jugadores: se crean los 4, pero solo aparecen los que están conectados al empezar
+    this.jug = COLORES.map((c, i) => {
+      const p = this.physics.add.sprite(W * (i + 1) / (MAX + 1), H - 88, 'j' + i);
       p.setCollideWorldBounds(true);
+      p.indice = i;
       p.dir = 0;
       p.puntos = 0;
+      p.activo = false;     // está jugando ahora mismo
+      p.participo = false;  // jugó en esta ronda (sale en el ranking)
+      p.salio = false;      // se desconectó a media partida
       return p;
     });
 
@@ -219,11 +231,10 @@ class Escena extends Phaser.Scene {
     this.objetos = this.physics.add.group();
     this.jug.forEach((p) => {
       this.physics.add.overlap(p, this.objetos, (jugador, o) => {
-        if (estado !== 'jugando' || !o.active) return;
+        if (estado !== 'jugando' || !o.active || !jugador.activo) return;
 
-        // Si los dos cestos tocan el objeto a la vez, le cuenta a los dos
-        const otro = this.jug[1 - this.jug.indexOf(jugador)];
-        const tocan = this.physics.overlap(otro, o) ? [jugador, otro] : [jugador];
+        // Si varios cestos tocan el objeto a la vez, le cuenta a todos los que lo tocan
+        const tocan = this.jug.filter((j) => j.activo && (j === jugador || this.physics.overlap(j, o)));
 
         const mala = o.esBomba;
         tocan.forEach((j) => {
@@ -244,25 +255,41 @@ class Escena extends Phaser.Scene {
       stroke: '#14143a',
       strokeThickness: Math.max(3, Math.round(px / 5)),
     });
-    this.t = [0, 1].map((i) =>
-      this.add.text(i ? W - 16 : 16, 16, '', f(16, COLORES[i])).setOrigin(i, 0).setDepth(5)
+
+    // Marcadores en una fila, uno por jugador
+    this.t = COLORES.map((c, i) =>
+      this.add.text(W * (2 * i + 1) / (2 * MAX), 52, '', f(14, c)).setOrigin(0.5, 0).setDepth(5)
     );
-    this.reloj = this.add.text(W / 2, 14, '', f(24, '#ffffff')).setOrigin(0.5, 0).setDepth(5);
+    this.reloj = this.add.text(W / 2, 10, '', f(24, '#ffffff')).setOrigin(0.5, 0).setDepth(5);
     this.msg = this.add
       .text(W / 2, H / 2 - 20, '', { ...f(28, '#ffd23f'), align: 'center', lineSpacing: 16 })
       .setOrigin(0.5)
       .setDepth(8);
-    this.sub = this.add.text(W / 2, H / 2 + 100, '', { ...f(12, '#ffffff'), align: 'center' })
+
+    // Pantalla de ranking
+    this.panel = this.add.rectangle(W / 2, H / 2, 560, 430, 0x14143a, 0.88).setDepth(7);
+    this.titulo = this.add
+      .text(W / 2, H / 2 - 165, '', { ...f(24, '#ffd23f'), align: 'center' })
+      .setOrigin(0.5)
+      .setDepth(8);
+    this.rank = COLORES.map((c, k) =>
+      this.add.text(W / 2, H / 2 - 95 + k * 50, '', f(20, c)).setOrigin(0.5).setDepth(8)
+    );
+    this.sub = this.add
+      .text(W / 2, H / 2 + 150, '', { ...f(12, '#ffffff'), align: 'center', lineSpacing: 10 })
       .setOrigin(0.5)
       .setDepth(8);
 
     // Generador de objetos
     this.time.addEvent({ delay: 650, loop: true, callback: this.crearObjeto, callbackScope: this });
 
-    // Barra espaciadora = jugar de nuevo (por si no quieres usar el celular)
-    this.input.keyboard.on('keydown-SPACE', () => {
-      if (estado === 'fin') this.iniciar();
-    });
+    // ESPACIO o ENTER = empezar (en el lobby, con 2 o más) / jugar de nuevo
+    const empezar = () => {
+      const listos = conectados.filter(Boolean).length;
+      if (estado === 'fin' || (estado === 'esperando' && listos >= 2)) this.iniciar();
+    };
+    this.input.keyboard.on('keydown-SPACE', empezar);
+    this.input.keyboard.on('keydown-ENTER', empezar);
 
     // F = pantalla completa
     this.input.keyboard.on('keydown-F', () => this.scale.toggleFullscreen());
@@ -274,9 +301,16 @@ class Escena extends Phaser.Scene {
       temporizador = setTimeout(() => this.reajustar(), 150);
     });
 
-    this.actualizarMarcador();
+    this.reiniciar();
     escena = this;
-    revisar();
+  }
+
+  // Coloca los textos y el sol según el ancho actual de la pantalla
+  acomodar() {
+    this.sol.setX(W * 0.72);
+    this.t.forEach((t, i) => t.setX(W * (2 * i + 1) / (2 * MAX)));
+    [this.reloj, this.msg, this.panel, this.titulo, this.sub].forEach((o) => o.setX(W / 2));
+    this.rank.forEach((r) => r.setX(W / 2));
   }
 
   reajustar() {
@@ -288,17 +322,7 @@ class Escena extends Phaser.Scene {
     this.cameras.main.setSize(W, H);
     this.physics.world.setBounds(0, 0, W, H);
     this.jug.forEach((p) => { p.x = (p.x / viejo) * W; });
-
-    this.sol.setX(W * 0.72);
-    this.t[1].setX(W - 16);
-    this.reloj.setX(W / 2);
-    this.msg.setX(W / 2);
-    this.sub.setX(W / 2);
-  }
-
-  mostrar(texto, tam) {
-    this.msg.setFontSize(tam || 28);
-    this.msg.setText(texto);
+    this.acomodar();
   }
 
   popup(x, y, texto, color) {
@@ -309,31 +333,69 @@ class Escena extends Phaser.Scene {
     this.tweens.add({ targets: t, y: y - 40, alpha: 0, duration: 600, onComplete: () => t.destroy() });
   }
 
+  mostrar(texto, tam) {
+    this.msg.setFontSize(tam || 28);
+    this.msg.setText(texto);
+  }
+
   limpiar() {
     [...this.objetos.getChildren()].forEach((o) => o.destroy());
   }
 
+  // Deja todo en blanco: sin objetos, sin jugadores en pantalla, sin ranking
   reiniciar() {
+    if (this.cuenta) this.cuenta.remove();
     this.limpiar();
-    this.jug.forEach((p) => { p.puntos = 0; p.dir = 0; });
+    this.jug.forEach((p) => {
+      p.puntos = 0;
+      p.dir = 0;
+      p.activo = false;
+      p.participo = false;
+      p.salio = false;
+      p.disableBody(true, true);
+    });
     this.mostrar('');
     this.sub.setText('');
+    this.titulo.setText('');
+    this.rank.forEach((r) => r.setVisible(false));
+    this.panel.setVisible(false);
     this.reloj.setText('');
     this.actualizarMarcador();
   }
 
   iniciar() {
     this.reiniciar();
+
+    const idx = [];
+    conectados.forEach((c, i) => { if (c) idx.push(i); });
+
+    if (idx.length < 2) {            // sin suficientes jugadores: regresamos al lobby
+      estado = 'esperando';
+      espera.style.display = 'flex';
+      enviarATodos({ t: 'lobby' });
+      return;
+    }
+
     estado = 'cuenta';
     espera.style.display = 'none';
+
+    // Los cestos se reparten parejo en el suelo
+    idx.forEach((i, k) => {
+      const p = this.jug[i];
+      p.enableBody(true, W * (k + 1) / (idx.length + 1), H - 88, true, true);
+      p.activo = true;
+      p.participo = true;
+    });
+    this.actualizarMarcador();
     enviarATodos({ t: 'inicio' });
 
     let n = 3;
     this.mostrar(String(n), 72);
-    this.time.addEvent({
+    this.cuenta = this.time.addEvent({
       delay: 1000,
       repeat: 2,
       callback: () => {
+        if (estado !== 'cuenta') return;
         n--;
         if (n > 0) {
           this.mostrar(String(n), 72);
@@ -345,6 +407,26 @@ class Escena extends Phaser.Scene {
         }
       },
     });
+  }
+
+  // Un celular se desconectó
+  jugadorSalio(s) {
+    const p = this.jug[s];
+    if ((estado !== 'cuenta' && estado !== 'jugando') || !p.activo) return;
+
+    p.activo = false;
+    p.salio = true;
+    p.dir = 0;
+    p.disableBody(true, true);
+    this.actualizarMarcador();
+
+    // Si ya no quedan al menos 2 jugadores, se cancela la partida
+    if (this.jug.filter((j) => j.activo).length < 2) {
+      estado = 'esperando';
+      espera.style.display = 'flex';
+      this.reiniciar();
+      enviarATodos({ t: 'lobby' });
+    }
   }
 
   crearObjeto() {
@@ -362,18 +444,52 @@ class Escena extends Phaser.Scene {
   }
 
   actualizarMarcador() {
-    this.jug.forEach((p, i) => this.t[i].setText('J' + (i + 1) + ': ' + p.puntos));
+    this.jug.forEach((p, i) => {
+      this.t[i].setVisible(p.participo);
+      this.t[i].setAlpha(p.salio ? 0.4 : 1);
+      this.t[i].setText('J' + (i + 1) + ': ' + p.puntos);
+    });
   }
 
   terminar() {
     estado = 'fin';
     this.limpiar();
     this.reloj.setText('0');
-    const [a, b] = [this.jug[0].puntos, this.jug[1].puntos];
-    const ganador = a === b ? 'EMPATE!' : 'GANA EL\nJUGADOR ' + (a > b ? 1 : 2) + '!';
-    this.mostrar(ganador + '\n\n' + a + ' - ' + b, 28);
+    this.mostrar('');
+
+    // Ranking: de más a menos puntos; si empatan, comparten lugar
+    const lista = this.jug.filter((p) => p.participo).sort((a, b) => b.puntos - a.puntos);
+    let lugar = 0;
+    let previo = null;
+    lista.forEach((p, k) => {
+      if (p.puntos !== previo) { lugar = k + 1; previo = p.puntos; }
+      p.lugar = lugar;
+    });
+
+    const primeros = lista.filter((p) => p.lugar === 1);
+    this.titulo.setText(
+      primeros.length === 1
+        ? 'GANA EL JUGADOR ' + (primeros[0].indice + 1) + '!'
+        : 'EMPATE!'
+    );
+
+    lista.forEach((p, k) => {
+      this.rank[k]
+        .setText(p.lugar + '. JUGADOR ' + (p.indice + 1) + '  ' + p.puntos + (p.salio ? ' (salio)' : ''))
+        .setColor(COLORES[p.indice])
+        .setVisible(true);
+    });
+
+    this.panel.setVisible(true);
     this.sub.setText('Toca JUGAR DE NUEVO en tu celular\no pulsa ESPACIO');
-    enviarATodos({ t: 'fin' });
+
+    // Cada celular recibe su lugar
+    conns.forEach((c, i) => {
+      if (c && c.open) {
+        const p = this.jug[i];
+        c.send({ t: 'fin', lugar: p.participo ? p.lugar : null, puntos: p.puntos });
+      }
+    });
   }
 
   update() {
@@ -382,13 +498,13 @@ class Escena extends Phaser.Scene {
     this.fondoB.tilePositionY -= 3;
 
     if (estado === 'jugando') {
-      this.jug.forEach((p) => p.body.setVelocityX(p.dir * 420));
+      this.jug.forEach((p) => { if (p.activo) p.body.setVelocityX(p.dir * 420); });
 
       const restante = Math.max(0, TIEMPO - (this.time.now - this.inicio) / 1000);
       this.reloj.setText(String(Math.ceil(restante)));
       if (restante <= 0) this.terminar();
     } else {
-      this.jug.forEach((p) => p.body.setVelocityX(0));
+      this.jug.forEach((p) => { if (p.activo) p.body.setVelocityX(0); });
     }
 
     // Borrar lo que ya salió de la pantalla
