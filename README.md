@@ -1,4 +1,4 @@
-# Pixel Rain 🌧️
+# Pixel Rain 
 
 Juego de 2 jugadores hecho con HTML, CSS, JavaScript y Phaser, con estilo pixel art.
 La pantalla principal muestra un código QR y cada jugador lo escanea con su celular, que se convierte en su control (conexión con PeerJS, sin servidor propio).
