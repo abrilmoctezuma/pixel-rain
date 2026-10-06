@@ -1,4 +1,11 @@
-const W = 800, H = 600, TIEMPO = 60;
+const H = 600, TIEMPO = 60;
+const ANCHO_MAX = 1500;   // cielo, lluvia y suelo se dibujan así de anchos para cubrir cualquier pantalla
+
+// El juego siempre mide 600 de alto; el ancho se adapta a la forma de tu pantalla
+function calcularAncho() {
+  return Math.max(640, Math.min(ANCHO_MAX, Math.round(H * window.innerWidth / window.innerHeight)));
+}
+let W = calcularAncho();
 const COLORES = ['#2ec4b6', '#ff6b35'];
 const FUENTE = '"Press Start 2P", monospace';
 
@@ -38,7 +45,8 @@ function crearSala() {
     const url = new URL('control.html?sala=' + idSala, location.href).href;
     const qr = document.getElementById('qr');
     qr.innerHTML = '';
-    new QRCode(qr, { text: url, width: 200, height: 200 });
+    const tam = Math.max(200, Math.min(300, Math.round(Math.min(window.innerWidth, window.innerHeight) * 0.35)));
+    new QRCode(qr, { text: url, width: tam, height: tam });
     document.getElementById('url').textContent = url;
     aviso.textContent = 'Escanea el QR con tu celular';
   });
@@ -185,22 +193,22 @@ class Escena extends Phaser.Scene {
     // Cielo de atardecer en franjas (de arriba hacia el horizonte)
     const cielo = [0x2a1a5e, 0x4a2275, 0x7a2b87, 0xa93a86, 0xd4507a, 0xee6b5e, 0xf58a5a];
     const alto = Math.ceil(H / cielo.length);
-    cielo.forEach((c, i) => this.add.rectangle(0, i * alto, W, alto, c).setOrigin(0, 0));
+    cielo.forEach((c, i) => this.add.rectangle(0, i * alto, ANCHO_MAX, alto, c).setOrigin(0, 0));
 
     // Sol que se esconde detrás del suelo
-    this.add.image(W * 0.72, H - 120, 'sol');
+    this.sol = this.add.image(W * 0.72, H - 120, 'sol');
 
     // Fondo: lluvia que cae (clara y semitransparente)
-    this.fondoA = this.add.tileSprite(W / 2, H / 2, W, H, 'lluviaA').setAlpha(0.25);
-    this.fondoB = this.add.tileSprite(W / 2, H / 2, W, H, 'lluviaB').setAlpha(0.5);
+    this.fondoA = this.add.tileSprite(ANCHO_MAX / 2, H / 2, ANCHO_MAX, H, 'lluviaA').setAlpha(0.25);
+    this.fondoB = this.add.tileSprite(ANCHO_MAX / 2, H / 2, ANCHO_MAX, H, 'lluviaB').setAlpha(0.5);
 
     // Suelo oscuro: tapa lo que cae al fondo
-    this.add.rectangle(W / 2, H - 35, W, 70, 0x1d0f3a).setDepth(3);
-    this.add.rectangle(W / 2, H - 70, W, 6, 0x4b2a7a).setDepth(3);
+    this.add.rectangle(0, H - 70, ANCHO_MAX, 70, 0x1d0f3a).setOrigin(0, 0).setDepth(3);
+    this.add.rectangle(0, H - 73, ANCHO_MAX, 6, 0x4b2a7a).setOrigin(0, 0).setDepth(3);
 
     // Jugadores
     this.jug = [0, 1].map((i) => {
-      const p = this.physics.add.sprite(i ? 600 : 200, H - 88, 'j' + i);
+      const p = this.physics.add.sprite(W * (i ? 0.75 : 0.25), H - 88, 'j' + i);
       p.setCollideWorldBounds(true);
       p.dir = 0;
       p.puntos = 0;
@@ -249,9 +257,36 @@ class Escena extends Phaser.Scene {
       if (estado === 'fin') this.iniciar();
     });
 
+    // F = pantalla completa
+    this.input.keyboard.on('keydown-F', () => this.scale.toggleFullscreen());
+
+    // Si cambia el tamaño de la ventana, el juego se acomoda
+    let temporizador = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(temporizador);
+      temporizador = setTimeout(() => this.reajustar(), 150);
+    });
+
     this.actualizarMarcador();
     escena = this;
     revisar();
+  }
+
+  reajustar() {
+    const viejo = W;
+    W = calcularAncho();
+    if (W === viejo) return;
+
+    this.scale.setGameSize(W, H);
+    this.cameras.main.setSize(W, H);
+    this.physics.world.setBounds(0, 0, W, H);
+    this.jug.forEach((p) => { p.x = (p.x / viejo) * W; });
+
+    this.sol.setX(W * 0.72);
+    this.t[1].setX(W - 16);
+    this.reloj.setX(W / 2);
+    this.msg.setX(W / 2);
+    this.sub.setX(W / 2);
   }
 
   mostrar(texto, tam) {
@@ -362,7 +397,7 @@ function arrancarPhaser() {
     parent: 'juego',
     pixelArt: true,
     backgroundColor: '#2a1a5e',
-    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, fullscreenTarget: 'caja' },
     physics: { default: 'arcade', arcade: { gravity: { y: 0 } } },
     scene: Escena,
   });
